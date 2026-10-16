@@ -8,19 +8,19 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"math/bits"
 	"net/http"
 
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
 
-// Mode chooses how the decoded image is resized.
+// Mode chooses how the decoded image is resized. Fit preserves the aspect ratio
+// without enlargement. Square crops the centre and resizes, including enlargement.
 type Mode int
 
 const (
-	// Fit preserves the aspect ratio and never enlarges an image.
 	Fit Mode = iota
-	// Square crops the centre to a square and resizes it, including enlargement.
 	Square
 )
 
@@ -57,8 +57,9 @@ type Result struct {
 }
 
 // Prepare decodes JPEG, PNG, GIF, or WebP, corrects EXIF orientation, resizes,
-// and encodes an image. Animated inputs use their first frame. Metadata is not
-// copied to the output. PNG preserves transparency; JPEG composites it on black.
+// and encodes an image. GIF inputs use their first frame; animated WebP is not
+// supported. Metadata is not copied to the output. PNG preserves transparency;
+// JPEG composites it on black.
 // Input bytes and declared pixels are checked before full decoding, regardless
 // of other image decoders registered by the calling program.
 func Prepare(r io.Reader, o Options) (Result, error) {
@@ -161,9 +162,15 @@ func FitSize(w, h, maxSide int) (int, int) {
 		return w, h
 	}
 	if w >= h {
-		return maxSide, max(1, int(float64(h)*float64(maxSide)/float64(w)))
+		return maxSide, fitFraction(h, maxSide, w)
 	}
-	return max(1, int(float64(w)*float64(maxSide)/float64(h))), maxSide
+	return fitFraction(w, maxSide, h), maxSide
+}
+
+func fitFraction(side, maxSide, longest int) int {
+	hi, lo := bits.Mul64(uint64(side), uint64(maxSide))
+	q, _ := bits.Div64(hi, lo, uint64(longest))
+	return max(1, int(q))
 }
 
 func resized(src image.Image, o Options) image.Image {

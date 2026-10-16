@@ -2,6 +2,7 @@ package imageprep
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 
@@ -22,8 +23,14 @@ func exifOrientation(mime string, buf []byte) (int, error) {
 		return upright, nil
 	}
 	o := upright
+	var warning error
 	_, err := imagemeta.Decode(imagemeta.Options{
 		R: bytes.NewReader(buf), ImageFormat: format, Sources: imagemeta.EXIF,
+		Warnf: func(format string, args ...any) {
+			if warning == nil {
+				warning = fmt.Errorf(format, args...)
+			}
+		},
 		HandleTag: func(ti imagemeta.TagInfo) error {
 			if ti.Tag != "Orientation" {
 				return nil
@@ -34,6 +41,7 @@ func exifOrientation(mime string, buf []byte) (int, error) {
 			return imagemeta.ErrStopWalking
 		},
 	})
+	err = errors.Join(err, warning)
 	if err != nil {
 		return upright, fmt.Errorf("read the EXIF of a %s: %w", mime, err)
 	}
