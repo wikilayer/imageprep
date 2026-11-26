@@ -65,13 +65,15 @@ func TestPrepareReadsOrientationAndDoesNotCopyMetadata(t *testing.T) {
 	}
 }
 
-func TestPrepareReturnsMalformedEXIFAsAnExplicitWarning(t *testing.T) {
-	exif := []byte{'E', 'x', 'i', 'f', 0, 0, 'I', 'I', 42, 0, 8, 0, 0, 0, 1, 0,
-		0x12, 1, 0xff, 0xff, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0}
+func TestPrepareKeepsTheOrientationPastAMalformedEntry(t *testing.T) {
+	exif := []byte{'E', 'x', 'i', 'f', 0, 0, 'I', 'I', 42, 0, 8, 0, 0, 0, 2, 0,
+		0x0f, 1, 0xff, 0xff, 1, 0, 0, 0, 0, 0, 0, 0,
+		0x12, 1, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0,
+		0, 0, 0, 0}
 	blob := withEXIF(t, jpegBlob(t, 30, 20), exif)
 	out, err := Prepare(bytes.NewReader(blob), options())
 	require.NoError(t, err)
-	assert.Error(t, out.MetadataError)
-	assert.Equal(t, 30, out.Width)
-	assert.Equal(t, 20, out.Height)
+	assert.NoError(t, out.MetadataError)
+	assert.Equal(t, 20, out.Width)
+	assert.Equal(t, 30, out.Height)
 }
